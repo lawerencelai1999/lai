@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>歷年西太平洋颱風路徑數據視覺化（2016–2025）</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e8ecff; --muted:#aab3d6;
+      --accent:#7aa2ff; --danger:#ff6b6b;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+    html,body{height:100%; margin:0; background:radial-gradient(1200px 800px at 20% 0%, #18245a 0%, var(--bg) 55%); color:var(--text); font-family:var(--sans);}
+    a{color:var(--accent); text-decoration:none}
+    .wrap{display:grid; grid-template-columns: 360px 1fr; gap:16px; height:100%; padding:16px; box-sizing:border-box;}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid rgba(122,162,255,.18); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+    .side{display:flex; flex-direction:column; min-width:320px;}
+    .side header{padding:16px 16px 12px; border-bottom:1px solid rgba(122,162,255,.18); background:rgba(18,26,51,.65); backdrop-filter: blur(8px);}
+    .side h1{font-size:18px; margin:0 0 6px}
+    .side p{margin:0; color:var(--muted); font-size:13px; line-height:1.45}
+    .controls{padding:14px 16px; display:grid; gap:10px;}
+    .row{display:grid; gap:8px;}
+    label{font-size:12px; color:var(--muted)}
+    select,input[type="text"]{
+      width:100%; padding:10px 10px; border-radius:12px;
+      border:1px solid rgba(122,162,255,.2); background:rgba(15,23,48,.9); color:var(--text);
+      outline:none;
+    }
+    .inline{display:grid; grid-template-columns: 1fr 1fr; gap:10px;}
+    .toggle{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 12px; border-radius:12px;
+      border:1px solid rgba(122,162,255,.2); background:rgba(15,23,48,.9);
+      font-size:13px; color:var(--muted);
+    }
+    .toggle input{transform:scale(1.1)}
+    .stats{padding:0 16px 16px;}
+    .pill{display:inline-flex; gap:8px; align-items:center; padding:8px 10px; border-radius:999px; border:1px solid rgba(122,162,255,.2); background:rgba(15,23,48,.75); font-size:12px; color:var(--muted); margin:6px 6px 0 0;}
+    .pill b{color:var(--text); font-family:var(--mono); font-weight:600}
+    .detail{padding:14px 16px 16px; border-top:1px solid rgba(122,162,255,.18); background:rgba(18,26,51,.35)}
+    .detail h2{font-size:14px; margin:0 0 8px}
+    .kv{display:grid; grid-template-columns: 120px 1fr; gap:6px 10px; font-size:12px; color:var(--muted); line-height:1.4}
+    .kv code{font-family:var(--mono); color:var(--text)}
+    .map{position:relative; min-height:540px;}
+    .map header{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:12px 14px; border-bottom:1px solid rgba(122,162,255,.18); background:rgba(18,26,51,.35)}
+    .map header .title{display:flex; flex-direction:column; gap:2px}
+    .map header .title b{font-size:14px}
+    .map header .title span{font-size:12px; color:var(--muted)}
+    .legend{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+    .lg{display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted)}
+    .sw{width:12px; height:12px; border-radius:3px; border:1px solid rgba(255,255,255,.25)}
+    #svg{width:100%; height:calc(100% - 54px); display:block;}
+    .tooltip{
+      position:absolute; pointer-events:none; padding:10px 10px; border-radius:12px;
+      background:rgba(10,14,30,.92); border:1px solid rgba(122,162,255,.25);
+      box-shadow: 0 12px 30px rgba(0,0,0,.45);
+      font-size:12px; color:var(--text); max-width:340px; line-height:1.35;
+      opacity:0; transform: translate(-50%, -100%); transition: opacity .08s ease;
+    }
+    .tooltip .muted{color:var(--muted)}
+    .footer-note{padding:10px 14px; font-size:12px; color:var(--muted); border-top:1px solid rgba(122,162,255,.18); background:rgba(18,26,51,.25)}
+    .warn{color:var(--danger)}
+    
+    .btn{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(122,162,255,.25);
+      background:rgba(15,23,48,.9);
+      color:var(--text);
+      font-size:13px;
+      cursor:pointer;
+    }
+    .btn:hover{border-color: rgba(122,162,255,.45);}
+    .modal-backdrop{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center;
+      padding:18px;
+      z-index:9999;
+    }
+    .modal{
+      width:min(720px, 100%);
+      border-radius:16px;
+      border:1px solid rgba(122,162,255,.25);
+      background:rgba(12,16,32,.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      overflow:hidden;
+    }
+    .modal header{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(122,162,255,.18);
+      background:rgba(18,26,51,.35);
+    }
+    .modal header b{font-size:14px}
+    .modal .body{
+      padding:14px;
+      color:var(--text);
+      font-size:13px;
+      line-height:1.6;
+    }
+    .modal .body .muted{color:var(--muted)}
+    .icon-btn{
+      border:1px solid rgba(122,162,255,.25);
+      background:rgba(15,23,48,.8);
+      color:var(--text);
+      border-radius:10px;
+      padding:6px 10px;
+      cursor:pointer;
+    }
+    .icon-btn:hover{border-color: rgba(122,162,255,.45);}
+
+    
+    .header-actions{display:flex; gap:8px; align-items:center; margin-top:10px;}
+    .mini-btn{
+      padding:7px 10px;
+      border-radius:12px;
+      border:1px solid rgba(122,162,255,.25);
+      background:rgba(15,23,48,.9);
+      color:var(--text);
+      font-size:12px;
+      cursor:pointer;
+    }
+    .mini-btn:hover{border-color: rgba(122,162,255,.45);}
+
+    @media (max-width: 980px){
+      .wrap{grid-template-columns: 1fr; height:auto}
+      .map{min-height:520px}
+      #svg{height:560px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="card side">
+      <header>
+        <h1>歷年西太平洋颱風路徑數據視覺化（2016–2025）</h1>
+        <p id="metaNote">互動地圖呈現西北太平洋颱風路徑（資料：你合併後的 CSV）。</p>
+        <div class="header-actions">
+          <button class="mini-btn" id="aboutBtn" type="button">About</button>
+        </div>
+      </header>
+
+      <section class="controls">
+        <div class="inline">
+          <div class="row">
+            <label>起始年份</label>
+            <select id="yearFrom"></select>
+          </div>
+          <div class="row">
+            <label>結束年份</label>
+            <select id="yearTo"></select>
+          </div>
+        </div>
+
+        
+        <div class="inline">
+          <div class="row">
+            <label>起始月份</label>
+            <select id="monthFrom"></select>
+          </div>
+          <div class="row">
+            <label>結束月份</label>
+            <select id="monthTo"></select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label>強度篩選（以最大風速 kt 分級）</label>
+          <select id="cat">
+            <option value="ALL">全部</option>
+            <option value="TD">TD（<34 kt）</option>
+            <option value="TS">TS（34–63 kt）</option>
+            <option value="C1">C1（64–82 kt）</option>
+            <option value="C2">C2（83–95 kt）</option>
+            <option value="C3">C3（96–112 kt）</option>
+            <option value="C4">C4（113–136 kt）</option>
+            <option value="C5">C5（≥137 kt）</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label>搜尋（台風番号 / 台風名）</label>
+          <input id="q" type="text" placeholder="例如：1601 或 NEPARTAK" />
+        </div>
+
+        <div class="toggle" title="多條半透明路徑疊加，呈現重疊密度">
+          <span>密度模式（透明度累積）</span>
+          <input id="density" type="checkbox" />
+        </div>
+
+        <div class="toggle" title="顯示每條路徑上的時間點圓點">
+          <span>顯示時間點</span>
+          <input id="showPoints" type="checkbox" checked />
+        </div>
+      </section>
+
+      <section class="stats" id="stats"></section>
+
+      <section class="detail" id="detail">
+        <h2>滑鼠移到路徑或點上看細節</h2>
+        <div class="kv" id="kv"></div>
+        <button class="btn" id="fieldInfoBtn" type="button">資料欄位說明</button>
+      </section>
+    </aside>
+
+    <main class="card map">
+      <header>
+        <div class="title">
+          <b>互動地圖（西太平洋）</b>
+          <span>顏色＋節點大小＝風速強度；可滾輪縮放/拖拉平移；懸停＝時間/風速/氣壓/登陸資訊</span>
+        </div>
+        <div class="legend" id="legend"></div>
+      </header>
+
+      <svg id="svg" role="img" aria-label="typhoon map"></svg>
+      <div class="tooltip" id="tip"></div>
+
+      <div class="footer-note">
+        資料來源：<code>typhoon_2016_2025_merged.csv</code>（你提供的合併檔）。建議用 Live Server 開啟以避免瀏覽器讀檔限制。
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <script>
+  const CAT_ORDER = ["TD","TS","C1","C2","C3","C4","C5"];
+  const CAT_COLOR = {
+    TD:"#93c5fd", TS:"#34d399", C1:"#fbbf24", C2:"#fb923c", C3:"#f97316", C4:"#ef4444", C5:"#a855f7"
+  };
+
+  function fadedColor(cat){
+    const c = CAT_COLOR[cat] || "#cbd5e1";
+    
+    return d3.interpolateRgb(c, "#94a3b8")(0.75);
+  }
+
+  const $ = sel => document.querySelector(sel);
+  const svg = d3.select("#svg");
+  const tip = $("#tip");
+
+  const state = {
+    storms: [],
+    years: [],
+    
+    filter: {from:null, to:null, monthFrom:1, monthTo:12, cat:"ALL", q:"", density:false, showPoints:true},
+    selectedKey: null
+  };
+
+  
+  let zoomTransform = d3.zoomIdentity;
+
+  function catFromKts(kts){
+    if (kts == null || isNaN(kts)) return "TD";
+    if (kts < 34) return "TD";
+    if (kts < 64) return "TS";
+    if (kts < 83) return "C1";
+    if (kts < 96) return "C2";
+    if (kts < 113) return "C3";
+    if (kts < 137) return "C4";
+    return "C5";
+  }
+
+  
+  function compareYM(y1,m1,y2,m2){
+    if (y1 < y2) return -1;
+    if (y1 > y2) return 1;
+    if (m1 < m2) return -1;
+    if (m1 > m2) return 1;
+    return 0;
+  }
+
+function inRange(y, m){
+  if (state.filter.from == null || state.filter.to == null) return true;
+
+  const fy = state.filter.from;
+  const ty = state.filter.to;
+  const fm = state.filter.monthFrom;
+  const tm = state.filter.monthTo;
+
+  
+  if (y < fy || y > ty) return false;
+
+  
+  if (m < fm || m > tm) return false;
+
+  return true;
+}
+
+
+
+  function maxCatOfStorm(storm){
+    let m = -1, c = "TD";
+    for (const p of storm.points){
+      if (!inRange(p.year, p.month)) continue;
+      const idx = CAT_ORDER.indexOf(p.cat);
+      if (idx > m){ m = idx; c = p.cat; }
+    }
+    return m === -1 ? "TD" : c;
+  }
+  function stormMaxKts(storm){
+    const vals = storm.points
+      .filter(p => inRange(p.year, p.month))
+      .map(d => d.msw_kts ?? 0);
+    return vals.length ? (d3.max(vals) ?? 0) : 0;
+  }
+  function stormMinPres(storm){
+    const vals = storm.points
+      .filter(p => inRange(p.year, p.month))
+      .map(d => d.pres_hpa ?? null)
+      .filter(v => v != null);
+    if (!vals.length) return null;
+    const v = d3.min(vals);
+    return v == null ? null : v;
+  }
+
+  function buildLegend(){
+    const legend = d3.select("#legend");
+    legend.selectAll("*").remove();
+    CAT_ORDER.forEach(c=>{
+      const el = legend.append("div").attr("class","lg");
+      el.append("span").attr("class","sw").style("background", CAT_COLOR[c]);
+      el.append("span").text(c);
+    });
+  }
+
+  function buildYearOptions(){
+    const years = state.years;
+    const from = $("#yearFrom"), to = $("#yearTo");
+    from.innerHTML = ""; to.innerHTML = "";
+    for (const y of years){
+      const o1 = document.createElement("option"); o1.value=y; o1.textContent=y;
+      const o2 = document.createElement("option"); o2.value=y; o2.textContent=y;
+      from.appendChild(o1); to.appendChild(o2);
+    }
+    state.filter.from = years[0];
+    state.filter.to = years[years.length-1];
+    from.value = state.filter.from;
+    to.value = state.filter.to;
+
+    from.addEventListener("change", ()=>{ state.filter.from = +from.value; clampYears(); render(); });
+    to.addEventListener("change", ()=>{ state.filter.to = +to.value; clampYears(); render(); });
+  }
+  function clampYears(){
+    if (state.filter.from > state.filter.to){
+      const t = state.filter.from;
+      state.filter.from = state.filter.to;
+      state.filter.to = t;
+      $("#yearFrom").value = state.filter.from;
+      $("#yearTo").value = state.filter.to;
+    }
+  }
+
+  
+  function buildMonthOptions(){
+    const monthFrom = $("#monthFrom");
+    const monthTo = $("#monthTo");
+    monthFrom.innerHTML = "";
+    monthTo.innerHTML = "";
+    for (let m=1; m<=12; m++){
+      const o1 = document.createElement("option");
+      o1.value = m;
+      o1.textContent = `${m} 月`;
+      const o2 = document.createElement("option");
+      o2.value = m;
+      o2.textContent = `${m} 月`;
+      monthFrom.appendChild(o1);
+      monthTo.appendChild(o2);
+    }
+    state.filter.monthFrom = 1;
+    state.filter.monthTo = 12;
+    monthFrom.value = "1";
+    monthTo.value = "12";
+
+    function clampMonthRange(){
+      
+      if (state.filter.from === state.filter.to &&
+          state.filter.monthFrom > state.filter.monthTo){
+        const t = state.filter.monthFrom;
+        state.filter.monthFrom = state.filter.monthTo;
+        state.filter.monthTo = t;
+        monthFrom.value = String(state.filter.monthFrom);
+        monthTo.value = String(state.filter.monthTo);
+      }
+    }
+
+    monthFrom.addEventListener("change", ()=>{
+      state.filter.monthFrom = +monthFrom.value;
+      clampMonthRange();
+      render();
+    });
+    monthTo.addEventListener("change", ()=>{
+      state.filter.monthTo = +monthTo.value;
+      clampMonthRange();
+      render();
+    });
+  }
+
+  function bindControls(){
+    $("#cat").addEventListener("change", (e)=>{ state.filter.cat = e.target.value; render(); });
+    $("#q").addEventListener("input", (e)=>{ state.filter.q = e.target.value.trim().toUpperCase(); render(); });
+    $("#density").addEventListener("change", (e)=>{ state.filter.density = e.target.checked; render(); });
+    $("#showPoints").addEventListener("change", (e)=>{ state.filter.showPoints = e.target.checked; render(); });
+  }
+
+  function passesFilter(storm){
+    
+    const hasPointInRange = storm.points.some(p => inRange(p.year, p.month));
+    if (!hasPointInRange) return false;
+
+    const q = state.filter.q;
+    if (q){
+      const hay = (storm.id + " " + storm.name).toUpperCase();
+      if (!hay.includes(q)) return false;
+    }
+
+    const cat = state.filter.cat;
+    if (cat !== "ALL"){
+      const mcat = maxCatOfStorm(storm);
+      if (mcat !== cat) return false;
+    }
+    return true;
+  }
+
+  function updateStats(storms){
+    const out = [];
+    out.push({k:"顯示颱風數", v: storms.length});
+    if (storms.length){
+      const years = storms.map(d=>d.year);
+      out.push({k:"年份範圍", v: `${Math.min(...years)}–${Math.max(...years)}`});
+      const maxWind = d3.max(storms, stormMaxKts) ?? 0;
+      out.push({k:"最大風速峰值", v: `${maxWind.toFixed(0)} kt`});
+      const minPres = d3.min(storms, stormMinPres);
+      out.push({k:"最低中心氣壓", v: (minPres==null ? "—" : `${minPres} hPa`)});
+    }
+    const box = d3.select("#stats");
+    box.selectAll("*").remove();
+    for (const s of out){
+      const pill = box.append("div").attr("class","pill");
+      pill.append("span").text(s.k);
+      pill.append("b").text(s.v);
+    }
+  }
+
+  function setDetail(title, kv){
+    $("#detail h2").textContent = title;
+    const el = $("#kv"); el.innerHTML = "";
+    for (const {k,v} of kv){
+      const kEl = document.createElement("div"); kEl.textContent = k;
+      const vEl = document.createElement("div"); vEl.innerHTML = v;
+      el.appendChild(kEl); el.appendChild(vEl);
+    }
+  }
+
+  function showTip(html, x, y){
+    tip.innerHTML = html;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+    tip.style.opacity = 1;
+  }
+  function hideTip(){ tip.style.opacity = 0; }
+
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
+  function approxKm(a, b){
+    
+    const dlat = (b.lat - a.lat);
+    const dlon = (b.lon - a.lon);
+    const latm = (a.lat + b.lat) / 2 * Math.PI/180;
+    const x = dlon * 111.32 * Math.cos(latm);
+    const y = dlat * 110.57;
+    return Math.sqrt(x*x + y*y);
+  }
+
+  function simplifyPoints(points){
+    
+    if (!points || points.length <= 2) return points || [];
+    const out = [points[0]];
+    for (let i=1;i<points.length-1;i++){
+      const prev = out[out.length-1];
+      const cur = points[i];
+      const km = approxKm(prev, cur);
+
+      const sameWind = (prev.msw_kts === cur.msw_kts);
+      const samePres = (prev.pres_hpa === cur.pres_hpa);
+      const sameCat  = (prev.cat === cur.cat);
+      const sameLf   = (prev.landfall === cur.landfall);
+
+      
+      if (km < 15 && sameWind && samePres && sameCat && sameLf){
+        continue;
+      }
+      out.push(cur);
+    }
+    out.push(points[points.length-1]);
+
+    
+    const maxPts = 220;
+    if (out.length > maxPts){
+      const step = Math.ceil(out.length / maxPts);
+      const thinned = [];
+      for (let i=0;i<out.length;i++){
+        if (i===0 || i===out.length-1 || i % step === 0) thinned.push(out[i]);
+      }
+      return thinned;
+    }
+    return out;
+  }
+
+  function toISO(y,m,d,h){
+    
+    return `${y}-${pad2(m)}-${pad2(d)}T${pad2(h)}:00Z`;
+  }
+
+  async function load(){
+    buildLegend();
+    bindControls();
+
+    
+    const rows = await d3.csv("./typhoon_2016_2025_merged.csv", d => ({
+      year: +d["年"],
+      month: +d["月"],
+      day: +d["日"],
+      hour_utc: +d["時（UTC）"],
+      id: String(d["台風番号"] ?? "").trim(),
+      name: String(d["台風名"] ?? "").trim(),
+      lat: +d["緯度"],
+      lon: +d["経度"],
+      pres_hpa: (d["中心気圧"]==="" ? null : +d["中心気圧"]),
+      msw_kts: (d["最大風速"]==="" ? null : (+d["最大風速"] < 34 ? 0 : +d["最大風速"])),
+      landfall: +d["上陸"] === 1,
+      r30s: (d["30KT短径"]==="" ? null : +d["30KT短径"]),
+      r30l: (d["30KT長径"]==="" ? null : +d["30KT長径"]),
+      r30dir: (d["30KT長径方向"]==="" ? null : +d["30KT長径方向"]),
+      r50s: (d["50KT短径"]==="" ? null : +d["50KT短径"]),
+      r50l: (d["50KT長径"]==="" ? null : +d["50KT長径"]),
+      r50dir: (d["50KT長径方向"]==="" ? null : +d["50KT長径方向"])
+    }));
+
+    
+    const groups = d3.group(rows, d => `${d.year}-${d.id}`);
+    const storms = [];
+    for (const [key, arr] of groups){
+      const any = arr[0];
+      const points = simplifyPoints(arr
+        .map(r => ({
+          t: toISO(r.year, r.month, r.day, r.hour_utc),
+          year: r.year,
+          month: r.month,
+          lat: r.lat,
+          lon: r.lon,
+          pres_hpa: r.pres_hpa,
+          msw_kts: r.msw_kts,
+          landfall: r.landfall,
+          cat: catFromKts(r.msw_kts),
+          r30s: r.r30s, r30l: r.r30l, r30dir: r.r30dir,
+          r50s: r.r50s, r50l: r.r50l, r50dir: r.r50dir
+        }))
+        .sort((a,b)=> a.t.localeCompare(b.t)));
+
+      storms.push({
+        key,
+        id: any.id,
+        name: any.name || "(no name)",
+        year: any.year,
+        basin: "WPAC",
+        points
+      });
+    }
+
+    state.storms = storms.sort((a,b)=>a.year-b.year || a.id.localeCompare(b.id));
+    state.years = Array.from(new Set(storms.map(d=>d.year))).sort((a,b)=>a-b);
+    buildYearOptions();
+    buildMonthOptions();
+
+    $("#metaNote").textContent = `共載入 ${rows.length.toLocaleString()} 筆觀測點、${storms.length.toLocaleString()} 個颱風（2016–2025）。`;
+
+    
+    const modal = $("#fieldModal");
+    const btn = $("#fieldInfoBtn");
+    const closeBtn = $("#fieldModalClose");
+
+    function openModal(){
+      modal.style.display = "flex";
+      modal.setAttribute("aria-hidden","false");
+    }
+    function closeModal(){
+      modal.style.display = "none";
+      modal.setAttribute("aria-hidden","true");
+    }
+    btn?.addEventListener("click", openModal);
+    closeBtn?.addEventListener("click", closeModal);
+    modal?.addEventListener("click", (e)=>{ if (e.target === modal) closeModal(); });
+    window.addEventListener("keydown", (e)=>{ if (e.key === "Escape") closeModal(); });
+
+    
+    const aboutM = $("#aboutModal");
+    const aboutBtn = $("#aboutBtn");
+    const aboutClose = $("#aboutModalClose");
+    const openAbout = ()=>{ aboutM.style.display='flex'; aboutM.setAttribute('aria-hidden','false'); };
+    const closeAbout = ()=>{ aboutM.style.display='none'; aboutM.setAttribute('aria-hidden','true'); };
+    aboutBtn?.addEventListener('click', openAbout);
+    aboutClose?.addEventListener('click', closeAbout);
+    aboutM?.addEventListener('click', (e)=>{ if (e.target===aboutM) closeAbout(); });
+
+    await render(true);
+  }
+
+  async function render(first=false){
+    const width = svg.node().clientWidth;
+    const height = svg.node().clientHeight;
+
+    svg.selectAll("*").remove();
+
+    
+    const gRoot = svg.append("g").attr("class","root");
+
+    
+    gRoot.attr("transform", zoomTransform);
+    const zoom = d3.zoom()
+      .scaleExtent([0.35, 12])
+      .on("zoom", (event) => {
+        zoomTransform = event.transform;
+        gRoot.attr("transform", zoomTransform);
+      });
+
+    
+    svg.call(zoom);
+    
+    svg.call(zoom.transform, zoomTransform);
+    svg.on("dblclick.zoom", null);
+
+    const projection = d3.geoMercator()
+      .rotate([-180, 0])
+      .center([0, 18]) 
+      .scale(Math.min(width, height) * 2.25)
+      .translate([width/2, height/2]);
+
+    const geoPath = d3.geoPath(projection);
+
+    
+    const grat = d3.geoGraticule10();
+    gRoot.append("path")
+      .datum(grat)
+      .attr("d", geoPath)
+      .attr("fill","none")
+      .attr("stroke","rgba(255,255,255,.08)")
+      .attr("stroke-width",1);
+
+    
+    const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json");
+    const land = topojson.feature(world, world.objects.land);
+
+    gRoot.append("path")
+      .datum(land)
+      .attr("d", geoPath)
+      .attr("fill","rgba(255,255,255,.06)")
+      .attr("stroke","rgba(255,255,255,.12)")
+      .attr("stroke-width",0.6);
+
+    
+    gRoot.append("rect")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", height)
+      .attr("fill", "transparent")
+      .lower()
+      .on("click", ()=>{ if (state.selectedKey){ state.selectedKey = null; render(false); } });
+
+    const storms = state.storms.filter(passesFilter);
+    updateStats(storms);
+
+    const hasSel = !!state.selectedKey;
+    const opacity = state.filter.density ? 0.16 : 0.55;
+    const strokeWidth = state.filter.density ? 1.3 : 2.2;
+    
+    const otherLineOpacity = hasSel ? 0.16 : opacity;
+    const otherLineWidth   = hasSel ? 1.3  : strokeWidth;
+    const selLineOpacity = 0.92;
+    const selLineWidth   = 3.4;
+
+    const line = d3.line()
+      .x(d=>projection([d.lon, d.lat])[0])
+      .y(d=>projection([d.lon, d.lat])[1])
+      .curve(d3.curveCatmullRom.alpha(0.6));
+
+    const g = gRoot.append("g").attr("class","storms");
+
+    const stormG = g.selectAll("g.storm")
+      .data(storms, d=>d.key)
+      .join("g")
+      .attr("class","storm");
+
+    stormG.append("path")
+      .attr("class","track")
+      .attr("d", d => {
+        const pts = d.points.filter(p => inRange(p.year, p.month));
+        if (pts.length < 2) return null;
+        return line(pts);
+      })
+      .attr("fill","none")
+      .attr("stroke", d => CAT_COLOR[maxCatOfStorm(d)] || "#cbd5e1")
+      .attr("stroke-width", d => (state.selectedKey && d.key === state.selectedKey) ? selLineWidth : otherLineWidth)
+      .attr("stroke-linecap","round")
+      .attr("stroke-linejoin","round")
+      .attr("opacity", d => (state.selectedKey && d.key === state.selectedKey) ? selLineOpacity : otherLineOpacity)
+      .style("cursor","pointer")
+      .on("click", (event, d)=>{
+        state.selectedKey = (state.selectedKey === d.key) ? null : d.key;
+        hideTip();
+        render(false);
+      })
+      .on("mousemove", (event, d)=>{
+        const mcat = maxCatOfStorm(d);
+        const minP = stormMinPres(d);
+        showTip(
+          `<div><b>${d.name}</b> <span class="muted">(${d.year}-${d.id})</span></div>
+           <div class="muted">Max: ${stormMaxKts(d).toFixed(0)} kt • MinP: ${minP==null?"—":minP+" hPa"} • Cat: <span style="color:${CAT_COLOR[mcat]}">${mcat}</span></div>
+           <div class="muted">提示：移到圓點可看每個時間點</div>`,
+          event.offsetX, event.offsetY
+        );
+        setDetail(`${d.name}（${d.year}-${d.id}）`,
+          [
+            {k:"Year", v:`<code>${d.year}</code>`},
+            {k:"ID", v:`<code>${d.id}</code>`},
+            {k:"Max wind", v:`<code>${stormMaxKts(d).toFixed(0)} kt</code>`},
+            {k:"Min pressure", v:`<code>${minP==null?"—":minP+" hPa"}</code>`},
+            {k:"Max category", v:`<code>${mcat}</code>`},
+            {k:"Points", v:`<code>${d.points.filter(p => inRange(p.year, p.month)).length}</code>`},
+          ]
+        );
+      })
+      .on("mouseleave", hideTip);
+
+    if (state.filter.showPoints){
+      stormG.selectAll("circle.pt")
+        .data(d=>d.points
+          .filter(p => inRange(p.year, p.month))
+          .map(p=>({storm:d, p})))
+        .join("circle")
+        .attr("class","pt")
+        .attr("r", d => {
+          const k = d.p.msw_kts;
+          const idx = Math.max(0, CAT_ORDER.indexOf(d.p.cat));
+          
+          const base = 4 + idx * 3.0; 
+          const t = (k == null || isNaN(k)) ? 0 : Math.max(0, Math.min(160, k));
+          const extra = Math.sqrt(t/160) * 7.5; 
+          return Math.max(3.5, Math.min(20, base + extra));
+        })
+        .attr("cx", d => projection([d.p.lon, d.p.lat])[0])
+        .attr("cy", d => projection([d.p.lon, d.p.lat])[1])
+        .attr("fill", d => {
+          if (!state.selectedKey) return CAT_COLOR[d.p.cat] || "#cbd5e1";
+          
+          return (d.storm.key === state.selectedKey) ? (CAT_COLOR[d.p.cat] || "#cbd5e1") : "#94a3b8";
+        })
+        .attr("opacity", state.filter.density ? 0.35 : 0.85)
+        .attr("stroke", d => {
+          if (!state.selectedKey) return "rgba(0,0,0,.25)";
+          return (d.storm.key === state.selectedKey) ? "rgba(0,0,0,.35)" : "none";
+        })
+        .attr("stroke-width",0.7)
+        .style("cursor","pointer")
+        .on("click", (event, d)=>{
+          state.selectedKey = (state.selectedKey === d.storm.key) ? null : d.storm.key;
+          hideTip();
+          render(false);
+        })
+        .on("mousemove", (event, d)=>{
+          const p = d.p;
+          const s = d.storm;
+          const lf = p.landfall ? "（上陸）" : "";
+          showTip(
+            `<div><b>${s.name}</b> <span class="muted">(${s.year}-${s.id})</span></div>
+             <div class="muted">${p.t} ${lf}</div>
+             <div>Lat/Lon: <span class="muted">${p.lat.toFixed(1)}, ${p.lon.toFixed(1)}</span></div>
+             <div>MSW: <span class="muted">${(p.msw_kts ?? 0).toFixed(0)} kt</span></div>
+             <div>Pressure: <span class="muted">${p.pres_hpa==null?"—":p.pres_hpa+" hPa"}</span></div>
+             <div>Cat: <span style="color:${CAT_COLOR[p.cat]}">${p.cat}</span></div>`,
+            event.offsetX, event.offsetY
+          );
+          setDetail(`${s.name}（${s.year}-${s.id}）— ${p.t}`,
+            [
+              {k:"Time (UTC)", v:`<code>${p.t}</code>`},
+              {k:"Lat, Lon", v:`<code>${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}</code>`},
+              {k:"MSW", v:`<code>${(p.msw_kts ?? 0).toFixed(0)} kt</code>`},
+              {k:"Pressure", v:`<code>${p.pres_hpa==null?"—":p.pres_hpa+" hPa"}</code>`},
+              {k:"Category", v:`<code>${p.cat}</code>`},
+              {k:"Landfall", v:`<code>${p.landfall ? "yes" : "no"}</code>`},
+              {k:"30kt radii", v:`<code>${p.r30s ?? 0}/${p.r30l ?? 0} (dir ${p.r30dir ?? 0})</code>`},
+              {k:"50kt radii", v:`<code>${p.r50s ?? 0}/${p.r50l ?? 0} (dir ${p.r50dir ?? 0})</code>`},
+            ]
+          );
+        })
+        .on("mouseleave", hideTip);
+    }
+
+    
+    if (state.selectedKey){
+      const sel = stormG.filter(d => d.key === state.selectedKey);
+      sel.raise();
+      sel.selectAll("path.track").raise();
+      sel.selectAll("circle.pt").raise();
+    }
+
+    if (!storms.length){
+      gRoot.append("text")
+        .attr("x", width/2)
+        .attr("y", height/2)
+        .attr("text-anchor","middle")
+        .attr("fill","rgba(255,255,255,.7)")
+        .style("font-size","14px")
+        .text("目前篩選條件下沒有資料，試著放寬年份/月份/強度/搜尋條件。");
+    }
+  }
+
+  let rAF=null;
+  window.addEventListener("resize", ()=>{
+    if (rAF) cancelAnimationFrame(rAF);
+    rAF = requestAnimationFrame(()=>render(false));
+  });
+
+  load();
+  </script>
+
+  <!-- Field info modal -->
+  <div class="modal-backdrop" id="fieldModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="資料欄位說明">
+      <header>
+        <b>資料欄位說明</b>
+        <button class="icon-btn" id="fieldModalClose" type="button">關閉</button>
+      </header>
+      <div class="body">
+        <div>1、時間（UTC）</div>
+        <div>2、颱風編號（年份後的兩位數字 + 年份的颱風發生次數）</div>
+        <div>3、緯度（度）/ 經度（度）</div>
+        <div>4、中心壓（hPa）</div>
+        <div>
+          5、最大風速（節）
+          <div class="muted">若風速小於 34 節，則設定為「0」。</div>
+        </div>
+
+        <div style="margin-top:10px">6、30KT radii</div>
+        <div class="muted">
+          風區（最大風速為 30 節或以上的區域）顯示在以（長軸半徑 + 短軸半徑）/ 2 為半徑的圓內，
+          圓心位於距颱風中心沿長軸方向偏移（長軸半徑 − 短軸半徑）/ 2 的點上。
+          強風區的長軸方向以以下 8 個方向表示：<br>
+          1：東北，2：東，3：東南，4：南，5：西南，6：西，7：西北，8：北。<br>
+          若強風區與颱風中心同心，則記為「9」，
+          並且長軸方向（第 16 列）與短軸方向（第 17 列）記為相同數值。
+        </div>
+
+        <div style="margin-top:10px">7、50KT radii</div>
+        <div class="muted">
+          風暴區（最大風速達到或超過 50 節的區域）
+          以半徑為（主軸半徑 + 短軸半徑）/ 2 的圓表示，
+          圓心位於颱風中心沿主軸方向偏移（主軸半徑 − 短軸半徑）/ 2 的位置。
+          主軸方向分為 8 個方向：<br>
+          1：東北，2：東，3：東南，4：南，5：西南，6：西，7：西北，8：北。<br>
+          若風暴區與颱風中心同心，則記為「9」，
+          並且主軸方向（第 13 列）與短軸方向（第 14 列）也記為「9」。
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+
+
+  <!-- About modal -->
+  <div class="modal-backdrop" id="aboutModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="About">
+      <header>
+        <b>About</b>
+        <button class="icon-btn" id="aboutModalClose" type="button">關閉</button>
+      </header>
+      <div class="body">
+        <div style="font-size:14px; margin-bottom:8px"><b>概述</b></div>
+        <div class="muted">
+          這是一個互動地圖，以 2016–2025 年西北太平洋颱風為基礎，提供「路徑＋強度」的互動式視覺化：
+          路徑顯示移動軌跡；每個時間點節點用顏色與大小來顯示最大風速（kt）。
+        </div>
+
+        <div style="font-size:14px; margin:14px 0 6px"><b>功能特色</b></div>
+        <div class="muted">
+          • 互動地圖支援縮放與平移，方便觀察整體颱風分布。<br>
+          • 路徑顏色與節點大小同步呈現颱風強度變化。<br>
+          • 點擊任一節點或路徑可高亮單一颱風路線和其節點。<br>
+          
+        </div>
+
+        <div style="font-size:14px; margin:14px 0 6px"><b>使用提示</b></div>
+        <div class="muted">
+          • 使用滑鼠滾輪可縮放地圖，拖曳可平移視角。<br>
+          • 點擊路線或節點可以高亮該路線與節點，再次點擊可取消高亮。<br>
+          • 可搭配年份、月份、強度與搜尋條件，快速聚焦特定颱風或時段。
+        </div>
+
+        <div style="font-size:14px; margin:14px 0 6px"><b>整體路徑分析（2016–2025）</b></div>
+        <div class="muted">
+          整體而言，西北太平洋颱風多生成於菲律賓以東至關島附近海域，
+          路徑常呈現向西移動後再轉向北方的型態。
+          部分颱風直接西行影響南海與華南地區，
+          另一些則北轉，對臺灣、日本與韓半島造成影響。
+          透過密度背景與單一路徑高亮的互動方式，
+          使用者可以同時掌握整體趨勢與個別颱風的差異。
+        </div>
+      </div>
+    </div>
+  </div>
+    </div>
+  </div>
+
+  </div>
+
+</body>
+</html>
